@@ -5,9 +5,63 @@ import "./styles.css";
 
 const chapter = {
   number: 1,
-  title: "The night we met",
+  title: "A beginning",
   paragraphs: [
-  `The journey home had already started feeling like a memory before we even reached the train station.
+  `There was a time when life was just... life.
+
+A person (me) was simply surviving one day after another, enjoying his own company, finding happiness in little things, and occasionally laughing or crying for reasons that even he couldn't always explain. Nothing extraordinary, nothing particularly exciting. Just the usual routine of living, without expecting anyone to make a difference.
+
+And then, one day, she arrived.
+
+It was the middle of June. The kind of summer when stepping outside barefoot could easily leave you injured. But somehow, I managed to get injured without even stepping outside. I was sitting comfortably on a chair in a perfectly chilled room, minding my own business, completely unaware that something was about to change.
+
+The day she entered the room, almost every eye turned towards her.
+
+Well, almost every eye except mine.
+
+I barely noticed her. I was sitting there as if nothing had happened, carrying on with my usual expression of who cares? Not because there was anything wrong with her, but because I was never really the kind of person who got excited about meeting someone new. I was, and still am, a little shy when it comes to introducing myself to people.
+
+Though, technically, she wasn't a complete stranger to me.
+
+I had already seen her resume, and one of my colleagues had told me a little about her before she joined. In fact, the way he introduced her to me was quite hilarious.
+
+He said something along the lines of:
+
+"The girl we've hired has some hair on her hands and a solid fitness level. Looks like a gangster!"
+
+I just smiled.
+
+And that was pretty much my first introduction to her — through someone else's rather unusual description.
+
+At that point, I had absolutely no idea that this person, whom I had barely noticed, would eventually become someone whose little details I would remember so carefully.
+
+A few days later...
+
+One day, a few of us friends decided to celebrate one of our colleague's work anniversaries. While making plans, we thought it would be a good idea to invite her too.
+
+After all, she was new to the workplace, and we wanted her to feel comfortable around us. We thought it would be a nice opportunity to get familiar with each other, have some fun, and see whether she would fit in with our little group.
+
+So, we invited her.
+
+Obviously, being new, she seemed a little shy at first. But eventually, she agreed to join us.
+
+And that's how it happened.
+
+We all gathered around the food table, where casual conversations slowly turned into introductions, laughter, and little exchanges of stories. Nothing particularly special was planned, and there was no big moment that anyone would have thought of remembering.
+
+But somewhere between those conversations and the food, we started getting to know each other.
+
+We talked. We laughed. We became friends.
+
+And perhaps, without either of us realising it, that was the beginning of something.
+
+Not a love story. Not yet.
+
+Just two people meeting, talking, and becoming a part of each other's everyday lives.
+
+Sometimes, the most beautiful chapters begin with the most ordinary moments.
+
+The journey home had already started feeling like a memory before we even reached the train station.
 
 There were five of us travelling together, coming back after a trip that had given us enough stories to talk about for days. We had spent so much time together during the trip that by the time we boarded the train, none of us seemed ready to stop talking. We kept bringing up things that had happened earlier, laughing about moments that had seemed normal at the time but became much funnier when we retold them to each other.
 
@@ -449,7 +503,7 @@ One I never wanted to leave behind.
 };
 
 const chapters = [
-  { number: 1, title: "The night we met", available: true },
+  { number: 1, title: "A beginning", available: true },
   { number: 2, title: "The girl", available: false },
   { number: 3, title: "The day", available: false },
   { number: 4, title: "The night", available: false },
@@ -545,7 +599,7 @@ function App() {
   function narrate() {
     if (!("speechSynthesis" in window)) return alert("Narration is not supported in this browser.");
     if (narrating) { speechSynthesis.cancel(); setNarrating(false); return; }
-    const text = current.type === "story" ? current.paragraphs.join(" ") : current.type === "welcome" ? "Just about me. A collection of moments, feelings, and memories that I never wanted to leave behind." : "Contents. Chapter One, The night we met. Chapter Two, The girl. Chapter Three, The day. Chapter Four, The night. Chapter Five, The place.";
+    const text = current.type === "story" ? current.paragraphs.join(" ") : current.type === "welcome" ? "Just about me. A collection of moments, feelings, and memories that I never wanted to leave behind." : "Contents. Chapter One, A beginning. Chapter Two, The girl. Chapter Three, The day. Chapter Four, The night. Chapter Five, The place.";
     const u = new SpeechSynthesisUtterance(text); u.rate = .9; u.onend = () => setNarrating(false); u.onerror = () => setNarrating(false);
     speechSynthesis.cancel(); speechSynthesis.speak(u); setNarrating(true);
   }
