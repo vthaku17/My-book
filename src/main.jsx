@@ -520,31 +520,35 @@ const chapters = [
 function escapeHtml(value) {
   return value.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
-function splitText(text) {
-  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-  return sentences.flatMap(s => s.length > 1200 ? s.trim().split(/\s+/) : [s.trim()]);
-}
-function paginate(paragraphs, measure, height) {
-  const pages = [], source = paragraphs.flatMap(p => String(p).split(/\n\s*\n/)).map(p => p.trim()).filter(Boolean);
+// Fills each page using the same markup and CSS as the visible story page,
+// so the chapter heading, drop cap, width and fonts are all measured exactly.
+function paginate(chapter, measure) {
+  const source = chapter.paragraphs.flatMap(p => String(p).split(/\n\s*\n/)).map(p => p.trim()).filter(Boolean);
+  const pages = [];
   let current = [];
   const fits = items => {
-    measure.innerHTML = items.map(p => `<p>${escapeHtml(p)}</p>`).join("");
-    return measure.scrollHeight <= height;
+    const first = pages.length === 0;
+    measure.innerHTML = `<article class="story-page">${first ? `<div class="story-heading"><span class="eyebrow">Chapter ${chapter.number}</span><h1>${escapeHtml(chapter.title)}</h1></div>` : ""}<div class="story-text ${first ? "with-heading" : "full-height"}">${items.map((p, i) => `<p class="${first && i === 0 ? "dropcap" : ""}">${escapeHtml(p)}</p>`).join("")}</div></article>`;
+    const box = measure.querySelector(".story-text");
+    return box.scrollHeight <= box.clientHeight;
   };
+  const flush = () => { if (current.length) pages.push(current); current = []; };
+
   for (const paragraph of source) {
     if (fits([...current, paragraph])) { current.push(paragraph); continue; }
-    if (current.length) pages.push(current);
-    current = [];
+    flush();
     if (fits([paragraph])) { current = [paragraph]; continue; }
+    // A paragraph taller than a whole page is split between words.
     let chunk = "";
-    for (const part of splitText(paragraph)) {
-      const next = chunk ? `${chunk} ${part}` : part;
-      if (chunk && !fits([next])) { pages.push([chunk]); chunk = part; }
+    for (const word of paragraph.split(/\s+/)) {
+      const next = chunk ? `${chunk} ${word}` : word;
+      if (chunk && !fits([next])) { pages.push([chunk]); chunk = word; }
       else chunk = next;
     }
     if (chunk) current = [chunk];
   }
-  if (current.length) pages.push(current);
+  flush();
+  measure.innerHTML = "";
   return pages;
 }
 
@@ -561,30 +565,36 @@ function App() {
 
   const recalc = () => {
     const el = measureRef.current;
-    if (!el) return;
-    const h = Math.max(120, el.clientHeight);
-    setPages(chapterData.flatMap((item, chapterIndex) => paginate(item.paragraphs, el, h).map((paragraphs, index) => ({ chapterIndex, index, paragraphs }))));
+    if (!el || !el.clientHeight) return;
+    setPages(chapterData.flatMap((item, chapterIndex) => paginate(item, el).map((paragraphs, index) => ({ chapterIndex, index, paragraphs }))));
   };
+
+  // The font size must be applied before pages are measured.
+  useLayoutEffect(() => { document.documentElement.style.setProperty("--font-scale", fontScale); }, [fontScale]);
 
   useLayoutEffect(() => {
     recalc();
     const ro = new ResizeObserver(recalc);
     if (measureRef.current) ro.observe(measureRef.current);
-    return () => ro.disconnect();
-  }, [fontScale, theme]);
+    // Measure again once web fonts arrive, since they change line heights.
+    document.fonts?.ready.then(recalc);
+    document.fonts?.addEventListener("loadingdone", recalc);
+    return () => { ro.disconnect(); document.fonts?.removeEventListener("loadingdone", recalc); };
+  }, [fontScale]);
 
   const allPages = useMemo(() => [
     { type: "welcome" }, { type: "contents" },
     ...pages.map(item => ({ type: "story", ...item }))
   ], [pages]);
 
-  useEffect(() => { if (page >= allPages.length && allPages.length) setPage(allPages.length - 1); }, [allPages.length]);
+  useEffect(() => { if (pages.length && page >= allPages.length) setPage(allPages.length - 1); }, [allPages.length]);
   useEffect(() => { localStorage.setItem("jam-page", page); }, [page]);
   useEffect(() => { localStorage.setItem("jam-theme", theme); document.documentElement.dataset.theme = theme; }, [theme]);
-  useEffect(() => { localStorage.setItem("jam-font-scale", fontScale); document.documentElement.style.setProperty("--font-scale", fontScale); }, [fontScale]);
+  useEffect(() => { localStorage.setItem("jam-font-scale", fontScale); }, [fontScale]);
 
   useEffect(() => {
     const key = e => {
+      if (e.key === " " && e.target.closest?.("button")) return; // let Space press the focused button
       if (["ArrowRight","ArrowDown","PageDown"," "].includes(e.key)) { e.preventDefault(); next(); }
       if (["ArrowLeft","ArrowUp","PageUp"].includes(e.key)) { e.preventDefault(); prev(); }
       if (e.key === "+" || e.key === "=") setFontScale(v => Math.min(1.25, +(v + .05).toFixed(2)));
@@ -602,6 +612,10 @@ function App() {
   }
   function next() { navigate(page + 1, "next"); }
   function prev() { navigate(page - 1, "previous"); }
+  function openChapter(number) {
+    const index = pages.findIndex(p => chapterData[p.chapterIndex].number === number);
+    if (index >= 0) navigate(index + 2, "next"); // +2 skips the welcome and contents pages
+  }
 
   function narrate() {
     if (!("speechSynthesis" in window)) return alert("Narration is not supported in this browser.");
@@ -628,17 +642,17 @@ function App() {
         <div className="side-page-number">{String(page+1).padStart(2,"0")}</div>
         <button onClick={next} disabled={page===allPages.length-1}><ChevronRight size={20}/></button>
       </aside>
-      <div className={`content-panel ${animating ? `content-${direction}` : ""}`}><Page page={current} chapter={current.type === "story" ? chapterData[current.chapterIndex] : null} onRead={() => navigate(2,"next")}/></div>
+      <div className={`content-panel ${animating ? `content-${direction}` : ""}`}><Page page={current} chapter={current.type === "story" ? chapterData[current.chapterIndex] : null} onRead={() => navigate(2,"next")} onOpenChapter={openChapter}/></div>
+      <div className="measure-page" ref={measureRef} aria-hidden="true"/>
       <div className="chapter-rail"><span>{current.type === "story" ? `Chapter ${chapterData[current.chapterIndex].number}` : current.type === "welcome" ? "Introduction" : "Contents"}</span></div>
     </section>
     <div className="swipe-hint">Swipe or use ← → to continue</div>
-    <div className="measure-page" ref={measureRef} aria-hidden="true"/>
   </main>;
 }
 
-function Page({ page, chapter, onRead }) {
+function Page({ page, chapter, onRead, onOpenChapter }) {
   if (page.type === "welcome") return <div className="welcome-page"><span className="eyebrow">A memory worth keeping</span><h1>Just about me</h1><p>A collection of moments, feelings, and memories that I never wanted to leave behind.</p><button className="primary-action" onClick={onRead}>Start reading <ChevronRight size={16}/></button></div>;
-  if (page.type === "contents") return <div className="contents-page"><span className="eyebrow">The story</span><h1>Contents</h1><div className="contents-list">{chapters.map(item => <div className={`contents-row ${!item.available ? "muted":""}`} key={item.number}><span>Chapter {item.number}</span><strong>{item.title}</strong>{!item.available && <em>Coming soon</em>}</div>)}</div><button className="text-action" onClick={onRead}>Continue <ChevronRight size={16}/></button></div>;
+  if (page.type === "contents") return <div className="contents-page"><span className="eyebrow">The story</span><h1>Contents</h1><div className="contents-list">{chapters.map(item => <button type="button" className={`contents-row ${!item.available ? "muted":""}`} key={item.number} disabled={!item.available} onClick={() => onOpenChapter(item.number)}><span>Chapter {item.number}</span><strong>{item.title}</strong>{!item.available && <em>Coming soon</em>}</button>)}</div><button className="text-action" onClick={onRead}>Continue <ChevronRight size={16}/></button></div>;
   return <article className="story-page">{page.index===0 && <div className="story-heading"><span className="eyebrow">Chapter {chapter.number}</span><h1>{chapter.title}</h1></div>}<div className={`story-text ${page.index===0 ? "with-heading":"full-height"}`}>{page.paragraphs.map((p,i)=><p className={i===0&&page.index===0?"dropcap":""} key={`${page.index}-${i}`}>{p}</p>)}</div></article>;
 }
 createRoot(document.getElementById("root")).render(<App/>);
